@@ -13,7 +13,8 @@
     "package:win": "npm run build && electron-packager . marveds-minifier --platform=win32 --arch=x64 --out=dist --overwrite",
     "package:all": "npm run build && electron-packager . marveds-minifier --platform=darwin,win32,linux --arch=x64 --out=dist --overwrite",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "publish": "npx electron-forge publish -- --from-dry-run"
   },
   "dependencies": {
     "@babel/core": "^7.25.8",
@@ -52,6 +53,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.5.0",
     "@electron-forge/plugin-fuses": "^7.5.0",
     "@electron-forge/plugin-webpack": "^7.5.0",
+    "@electron-forge/publisher-github": "^7.5.0",
     "@electron/fuses": "^1.8.0",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.0.1",
