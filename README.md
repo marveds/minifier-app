@@ -89,7 +89,7 @@ If you encounter any issues or have suggestions, feel free to open an issue in t
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](https://github.com/marveds/minifier-app/LICENSE) file for more details.
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/marveds/minifier-app/blob/main/LICENSE) file for more details.
 
 ## Acknowledgements
 
