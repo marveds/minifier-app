@@ -97,6 +97,7 @@ This project is licensed under the MIT License. See the [LICENSE](https://github
 - [Webpack](https://webpack.js.org/)
 - [Terser](https://github.com/terser/terser)
 - [Chokidar](https://github.com/paulmillr/chokidar)
+- [Tailwind](https://tailwindcss.com)
 
 ---
 
