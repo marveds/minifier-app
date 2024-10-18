@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JS/CSS Minifier</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <div class="flex h-screen bg-zinc-100 dark:bg-zinc-800">
+        <div class="w-64 bg-white dark:bg-zinc-900 p-5 border-r dark:border-zinc-700">
+            <ul class="space-y-2">
+                <li>
+                <button
+                    id="showFolders"
+                    class="w-full text-left p-2 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                    Folder Selection
+                </button>
+                </li>
+                <li>
+                <button
+                    id="showLogs"
+                    class="w-full text-left p-2 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                    View Logs
+                </button>
+                </li>
+            </ul>
+        </div>
+    
+        <div class="flex-1 p-5">
+            <div class="flex items-center mb-4">
+                <i id="toggleMenu" class="fa fa-bars text-2xl mr-4 ml-4 hover:text-gray-500 cursor-pointer"></i> &nbsp; | &nbsp;
+                <button id="watchStatusButton" class="bg-transparent text-gray-500 p-2 rounded-lg hover:text-gray-800 ">
+                    <i id="watchIcon" class="fas fa-eye-slash text-2xl"></i> 
+                </button>
+            </div>
+            <div id="folderSelection" class="block">
+                <h1 class="text-xl font-bold dark:text-white mb-4">Select Folders to Watch</h1>
+                <textarea
+                id="pathInput"
+                class="w-full p-2 border rounded-lg dark:bg-zinc-700 dark:border-zinc-600 dark:text-white"
+                placeholder="Type or paste folder paths here"></textarea>
+                <i id="add-folder-button" class="fa-regular fa-keyboard text-2xl m-4 hover:text-blue-500 cursor-pointer"></i> &nbsp; | &nbsp;
+                <i id="select-folder-button" class="fa-regular fa-folder-open text-2xl m-4 hover:text-green-500 cursor-pointer"></i> &nbsp; | &nbsp;
+                <i id="clear-paths-button" class="fa-solid fa-trash text-2xl m-4 hover:text-red-500 cursor-pointer"></i>      
+                <button id="start-watch-button" class="mt-4 bg-green-500 text-white p-2 rounded-lg hidden">
+                    Start Watching
+                </button>
+                <div id="selectedFolders" class="mt-4 p-2 border rounded-lg dark:border-zinc-600">
+                <ul id="folderList" class="list-disc pl-5"></ul>
+                </div>
+
+            </div>
+            <div id="logView" class="hidden">
+                <h1 class="text-xl font-bold dark:text-white mb-4">Output Logs</h1>
+                <i id="clear-logs-button" class="fa-solid fa-trash-can text-2xl m-4 hover:text-red-500 cursor-pointer"></i>  
+                <div
+                class="h-96 overflow-auto p-2 border rounded-lg dark:border-zinc-600 bg-white dark:bg-zinc-700">
+                <pre id="logOutput" class="text-xs"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="./bundle.js"></script>
+</html>
