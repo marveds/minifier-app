@@ -326,14 +326,12 @@ function handleFileChange(filePath, webContents) {
 				outputExtension: '.css',
 				testRegex: /\.less$/,
 				loaders: [
-					{
-						loader: MiniCssExtractPlugin.loader,
-						options: {
-							esModule: false,
-						},
-					},
-					'css-loader',
-					'less-loader',
+					process.env.NODE_ENV !== 'production' ? 'style-loader' : MiniCssExtractPlugin.loader,
+                    {
+                        loader: 'css-loader',
+                        options: { url: false, esModule: false, }
+                    },
+                    'less-loader',
 				],
 				type: 'LESS',
 			});
