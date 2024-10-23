@@ -45,6 +45,10 @@ if (!gotTheLock) {
 			createTray();
 
 			mainWindow.webContents.once('did-finish-load', () => {
+				if (!app.isPackaged) {
+					mainWindow.webContents.openDevTools();
+				}
+
 				loadWatchedPaths((paths) => {
 					if (paths && paths.length > 0) {
 						startWatchingFolders(paths);
@@ -78,10 +82,6 @@ function createWindow() {
 		});
 
 		mainWindow.loadFile('index.html');
-		
-		if (!app.isPackaged) {
-			mainWindow.webContents.openDevTools();
-		}
 		
 		mainWindow.on('close', (event) => {
 			if (!app.isQuiting) {
@@ -144,9 +144,18 @@ ipcMain.on('select-folder', async (event) => {
 
 		if (!result.canceled) {
 			const selectedPaths = result.filePaths;
-			event.reply('selected-folders', selectedPaths);
-			saveWatchedPaths(selectedPaths);
-			startWatchingFolders(selectedPaths);
+			try {
+				loadWatchedPaths((savedPaths) => {
+					const existingPaths = savedPaths; // savedPaths.filter((p) => p !== folder);
+					const newPaths = selectedPaths.filter((path) => !existingPaths.includes(path));
+					existingPaths.push(...newPaths);
+					mainWindow.webContents.send('selected-folders', existingPaths);
+					saveWatchedPaths(existingPaths);
+					startWatchingFolders(selectedPaths);
+				});
+			} catch (error) {
+				mainWindow.webContents.send('watch-error', `Error loading watched paths: ${error}`);
+			}
 		}
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error selecting folder: ${error}`);
