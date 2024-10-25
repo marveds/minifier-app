@@ -91,3 +91,7 @@ typings/
 # Electron-Forge
 out/
 watched-paths.json
+
+dist/
+bundle.js
+bundle.js.map
