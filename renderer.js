@@ -8,10 +8,13 @@ const folderSelection = document.getElementById('folderSelection');
 const logView = document.getElementById('logView');
 const startWatchButton = document.getElementById('start-watch-button');
 const addFolderButton = document.getElementById('add-folder-button');
+const showLogsButton = document.getElementById('showLogs');
 
 const watchStatusButton = document.getElementById('watchStatusButton');
+const clearPathsButton = document.getElementById('clear-paths-button');
 const watchIcon = document.getElementById('watchIcon');
-// let isWatching = false;
+let isWatching = false;
+let allowNotification = true;
 
 function updateWatchIcon() {
     if (isWatching) {
@@ -29,11 +32,6 @@ function updateWatchIcon() {
 
 // Event listener for the watch status button to start/stop watching
 watchStatusButton.addEventListener('click', () => {
-    if (folderList.children.length === 0) {
-        ipcRenderer.notify('Folder Watch', 'No folders available to watch.');
-        return;
-    }
-
     if (isWatching) {
         ipcRenderer.send('stop-watching-all');
         isWatching = false;
@@ -42,6 +40,12 @@ watchStatusButton.addEventListener('click', () => {
             button.style.display = 'none';
         });
     } else {
+        if (folderList.children.length === 0) {
+            if (allowNotification) {
+                ipcRenderer.notify('Folder Watch', 'No folders available to watch.');
+            }
+            return;
+        }
         startWatchButton.click();
         isWatching = true;
         const stopButtons = document.querySelectorAll('.stop-button');
@@ -64,7 +68,7 @@ document.getElementById('showFolders').addEventListener('click', () => {
     logView.style.display = 'none';
 });
 
-document.getElementById('showLogs').addEventListener('click', () => {
+showLogsButton.addEventListener('click', () => {
     folderSelection.style.display = 'none';
     logView.style.display = 'block';
 });
@@ -83,7 +87,9 @@ addFolderButton.addEventListener('click', () => {
                 ipcRenderer.send('start-watch', { folders });
                 watchFolders(folders);
             } else {
-                ipcRenderer.notify('Add Foldeer', 'Path does not exist or is already in the list.');
+                if (allowNotification) {
+                    ipcRenderer.notify('Add Foldeer', 'Path does not exist or is already in the list.');
+                }
             }
         });
     }
@@ -98,8 +104,36 @@ startWatchButton.addEventListener('click', () => {
     const folders = Array.from(folderList.children).map(li => {
         return li.firstChild.textContent.trim();
     });
-    document.getElementById('showLogs').click();
+    showLogsButton.click();
     ipcRenderer.send('start-watch', { folders });
+});
+
+ipcRenderer.on('toggle-watch-request', (event) => {
+    watchStatusButton.click();
+});
+
+ipcRenderer.on('view-logs-request', (event) => {
+    showLogsButton.click();
+});
+
+ipcRenderer.on('clear-paths-request', (event) => {
+    clearPathsButton.click();
+});
+
+ipcRenderer.on('set-is-watching', (event, state) => {
+    isWatching = state;
+    updateWatchIcon();
+});
+
+ipcRenderer.on('notification-toggle', (event, state) => {
+    allowNotification = state;
+});
+
+ipcRenderer.on('restore-saved-config', (event, data) => {
+    const { folders, isWatchingState, notifictionState } = data;
+    isWatching = isWatchingState;
+    allowNotification = notifictionState;
+    updateWatchIcon();
 });
 
 ipcRenderer.on('selected-folders', (event, folders) => {
@@ -126,31 +160,35 @@ function watchFolders(folders) {
             ipcRenderer.send('stop-watching-folder', folder);
             clearLogButton.click();
             if (folderList.children.length > 0) {
-                isWatching = true;
+                // isWatching = true;
             } else {
                 isWatching = false;
             }
-            updateWatchIcon();
         });
 
         li.appendChild(stopButton);
         folderList.appendChild(li);
-
-        isWatching = true;
-        updateWatchIcon();
     });
 }
 
-document.getElementById('clear-paths-button').addEventListener('click', () => {
+clearPathsButton.addEventListener('click', () => {
     ipcRenderer.send('clear-saved-paths');
 });
 
 ipcRenderer.on('paths-cleared', () => {
-    ipcRenderer.notify('Cleared Folder', 'Saved paths cleared successfully.');
+    if (allowNotification) {
+        ipcRenderer.notify('Cleared Folder', 'Saved paths cleared successfully.');
+    }
+
     folderList.innerHTML = '';
     clearLogButton.click();
     isWatching = false;
     updateWatchIcon();
+});
+
+ipcRenderer.on('check-folder-list', (event) => {
+    const folders = Array.from(folderList.children).map(li => li.textContent);
+    ipcRenderer.send('check-folder-list-result', folders.length > 0);
 });
 
 ipcRenderer.on('watch-update', (event, message) => {
@@ -164,6 +202,18 @@ ipcRenderer.on('watch-error', (event, message) => {
 ipcRenderer.on('debug-message', (event, message) => {
     addMessage('Debug', message);
 });
+
+ipcRenderer.on('notify-message', (event, data) => {
+    const {title, message} = data;
+    notificationMessage(title, message);
+});
+
+function notificationMessage(title, message) {
+    if (allowNotification) {
+        ipcRenderer.notify(title, message);
+    }
+}
+
 
 function addMessage(type, message, isError = false) {
     const messageDiv = document.createElement('div');

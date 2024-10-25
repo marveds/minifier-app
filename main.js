@@ -7,7 +7,8 @@ const fs = require('fs');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const RemoveEmptyScriptsPlugin = require('webpack-remove-empty-scripts');
 const TerserPlugin = require('terser-webpack-plugin');
-const pathsFilePath = path.join(app.getPath('userData'), 'watchedPaths.json');
+const { start } = require('repl');
+const minifierDataPath = path.join(app.getPath('userData'), 'minifierData.json');
 
 let mainWindow;
 let watchers = [];
@@ -48,12 +49,18 @@ if (!gotTheLock) {
 				if (!app.isPackaged) {
 					mainWindow.webContents.openDevTools();
 				}
-
-				loadWatchedPaths((paths) => {
+				
+				loadMinifierData((savedData) => {
+					const { paths, isWatching, notifictionState } = savedData;
+					
 					if (paths && paths.length > 0) {
-						startWatchingFolders(paths);
 						mainWindow.webContents.send('selected-folders', paths);
+						if (isWatching) {
+							startWatchingFolders(paths);
+						}
 					}
+					mainWindow.webContents.send('restore-saved-config', savedData);
+					mainWindow.webContents.send('notification-toggle', notifictionState);
 				});
 			});
 		});
@@ -94,46 +101,129 @@ function createWindow() {
 	}
 }
 
+let trayMenuTemplate = [];
 function createTray() {
 	try {
-		const iconPath = path.join(__dirname, 'app_icon.png');
-		if (fs.existsSync(iconPath)) {
-			// console.error('Icon found: ', iconPath);
-			tray = new Tray(iconPath);
-
-			tray.setToolTip('My App');
-
-			const trayMenuTemplate = [
-				{
-					label: 'Show Dashboard',
-					click: () => {
-						mainWindow.show();
+		loadMinifierData((savedData) => {
+			const { paths, isWatching, notifictionState } = savedData;
+			console.log("Saved Data: ", savedData);
+			const iconPath = path.join(__dirname, 'app_icon.png');
+			if (fs.existsSync(iconPath)) {
+				tray = new Tray(iconPath);
+	
+				tray.setToolTip('My App');
+	
+				trayMenuTemplate = [
+					{
+						label: 'Show Dashboard',
+						click: () => {
+							mainWindow.show();
+						},
 					},
-				},
-				{
-					label: 'Quit',
-					click: () => {
-						app.isQuiting = true;
-						app.quit();
+					{
+						label: 'Watch',
+						submenu: [
+							{
+								label: 'Start',
+								type: 'radio',
+								checked: isWatching === true ? true : false,
+								click: () => {
+									mainWindow.webContents.send('check-folder-list');
+								},
+							},
+							{
+								label: 'Stop',
+								type: 'radio',
+								checked: (isWatching === false || (paths && paths.length === 0)) ? true : false,
+								click: () => {
+									mainWindow.webContents.send('toggle-watch-request', false);
+									saveMinifierData({...savedData, isWatching: false });
+								},
+							},
+						],
 					},
-				},
-			];
-
-			const trayMenu = Menu.buildFromTemplate(trayMenuTemplate);
-			tray.setContextMenu(trayMenu);
-
-			// Tray icon click should also show the window
-			// tray.on('click', () => {
-			// 	mainWindow.show();
-			// });
-
-			console.log('Tray created successfully.');
-			mainWindow.webContents.send('debug-message', 'Tray created successfully.');
-		} else {
-			console.error('Icon file not found:', iconPath);
-			mainWindow.webContents.send('debug-message', 'Icon file not found:', iconPath);
-		}
+					{
+						label: 'View Logs',
+						click: () => {
+							mainWindow.show();
+							mainWindow.webContents.send('view-logs-request');
+						},
+					},
+					{
+						label: 'Clear Paths',
+						click: () => {
+							mainWindow.webContents.send('clear-paths-request');
+						},
+					},
+					{
+						label: 'Notification',
+						submenu: [
+							{
+								label: 'On',
+								type: 'radio',
+								checked: notifictionState === true ? true : false,
+								click: () => {
+									mainWindow.webContents.send('notification-toggle', true);
+									saveMinifierData({...savedData, notifictionState: true });
+								},
+							},
+							{
+								label: 'Off',
+								type: 'radio',
+								checked: notifictionState === false ? true : false,
+								click: () => {
+									mainWindow.webContents.send('notification-toggle', false);
+									saveMinifierData({...savedData, notifictionState: false });
+								},
+							},
+						],
+					},
+					{
+						label: 'Quit',
+						click: () => {
+							app.isQuiting = true;
+							app.quit();
+						},
+					},
+				];
+	
+				const trayMenu = Menu.buildFromTemplate(trayMenuTemplate);
+				tray.setContextMenu(trayMenu);
+	
+				console.log('Tray created successfully.');
+				mainWindow.webContents.send('debug-message', 'Tray created successfully.');
+			} else {
+				console.error('Icon file not found:', iconPath);
+				mainWindow.webContents.send('debug-message', 'Icon file not found:', iconPath);
+			}
+		});
 	} catch (error) { }
+}
+
+ipcMain.on('check-folder-list-result', (event, state) => {
+	loadMinifierData((savedData) => {
+		const { notifictionState } = savedData;
+		console.log('Check folder list result notifictionState: ', notifictionState);
+		if (state) {
+			mainWindow.webContents.send('toggle-watch-request', true);
+			saveMinifierData({...savedData, isWatching: true });
+		} else {
+			mainWindow.webContents.send('watch-error', 'No folders selected to watch.');
+			mainWindow.webContents.send('notify-message', {title:'Start Watch', message: 'No folders selected to watch.'});
+			updateTray({start: false, stop: true});
+		}
+	});
+});
+
+function updateTray(data, notifictionState=null) {
+	const { start, stop } = data;
+	trayMenuTemplate[1].submenu[0].checked = start;
+	trayMenuTemplate[1].submenu[1].checked = stop;
+	if (notifictionState !== null) {
+		trayMenuTemplate[4].submenu[0].checked = notifictionState === true ? true : false;
+		trayMenuTemplate[4].submenu[1].checked = notifictionState === false ? true : false;
+	}
+	tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate));
 }
 
 ipcMain.on('select-folder', async (event) => {
@@ -145,12 +235,12 @@ ipcMain.on('select-folder', async (event) => {
 		if (!result.canceled) {
 			const selectedPaths = result.filePaths;
 			try {
-				loadWatchedPaths((savedPaths) => {
-					const existingPaths = savedPaths; // savedPaths.filter((p) => p !== folder);
+				loadMinifierData((savedData) => {
+					const existingPaths = savedData.paths || [];
 					const newPaths = selectedPaths.filter((path) => !existingPaths.includes(path));
 					existingPaths.push(...newPaths);
 					mainWindow.webContents.send('selected-folders', existingPaths);
-					saveWatchedPaths(existingPaths);
+					saveMinifierData({ ...savedData, paths: existingPaths });
 					startWatchingFolders(selectedPaths);
 				});
 			} catch (error) {
@@ -172,8 +262,10 @@ ipcMain.on('start-watch', (event, { folders }) => {
 			folderArray = folders;
 		}
 
-		saveWatchedPaths(folderArray);
-		startWatchingFolders(folderArray);
+		loadMinifierData((savedData) => {
+			saveMinifierData({ ...savedData, paths: folderArray, isWatching: true });
+			startWatchingFolders(folderArray);
+		});
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error starting watch: ${error}`);
 	}
@@ -184,10 +276,13 @@ ipcMain.on('check-folder-exists', (event, folderPath) => {
 });
 
 ipcMain.on('stop-watching-all', (event) => {
-	stopWatchedPaths();
+	loadMinifierData((savedData) => {
+		saveMinifierData({ ...savedData, isWatching: false });
+		stopMinifierData();
+	});
 });
 
-function stopWatchedPaths() {
+function stopMinifierData() {
 	try {
 		watchers.forEach((watcher) => {
 			watcher.close();
@@ -200,42 +295,46 @@ function stopWatchedPaths() {
 }
 
 ipcMain.on('clear-saved-paths', (event) => {
-	clearWatchedPaths();
+	clearMinifierData();
 	// event.reply('paths-cleared');
 });
 
-function clearWatchedPaths() {
+function clearMinifierData() {
 	try {
-		stopWatchedPaths();
+		stopMinifierData();
 
-		fs.unlink(pathsFilePath, (err) => {
-			if (err && err.code !== 'ENOENT') {
-				console.error('Error clearing watched paths:', err);
-			} else {
-				console.log('Watched paths cleared successfully.');
-				mainWindow.webContents.send('paths-cleared');
-			}
+		loadMinifierData((savedData) => {
+			const { notifictionState } = savedData;
+			fs.unlink(minifierDataPath, (err) => {
+				if (err && err.code !== 'ENOENT') {
+					console.error('Error clearing watched paths:', err);
+				} else {
+					console.log('Watched paths cleared successfully.');
+					mainWindow.webContents.send('paths-cleared');
+					updateTray({start: false, stop: true}, notifictionState);
+				}
+			});
 		});
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error clearing watched paths: ${error}`);
 	}
 }
 
-function loadWatchedPaths(callback) {
+function loadMinifierData(callback) {
 	try {
-		fs.readFile(pathsFilePath, 'utf8', (err, data) => {
+		fs.readFile(minifierDataPath, 'utf8', (err, data) => {
 			if (err) {
 				if (err.code !== 'ENOENT') {
 					console.error('Error reading watched paths:', err);
 				}
-				callback([]);
+				callback({ paths: [], isWatching: false, notifictionState: true });
 			} else {
 				try {
-					const paths = JSON.parse(data);
-					callback(paths);
+					const parsedData = JSON.parse(data);
+					callback(parsedData);
 				} catch (parseErr) {
 					console.error('Error parsing watched paths:', parseErr);
-					callback([]);
+					callback({ paths: [], isWatching: false, notifictionState: true });
 				}
 			}
 		});
@@ -244,13 +343,13 @@ function loadWatchedPaths(callback) {
 	}
 }
 
-function saveWatchedPaths(paths) {
+function saveMinifierData(data) {
 	try {
-		fs.writeFile(pathsFilePath, JSON.stringify(paths), (err) => {
+		fs.writeFile(minifierDataPath, JSON.stringify(data), (err) => {
 			if (err) {
 				console.error('Error saving watched paths:', err);
 			} else {
-				console.log('Watched paths saved successfully.');
+				console.log('Settings saved successfully.');
 			}
 		});
 	} catch (error) {
@@ -288,6 +387,9 @@ function startWatchingFolders(folders) {
 					mainWindow.webContents.send('watch-update', `File removed: ${filePath}`);
 				});
 			watchers.push(watcher);
+
+			mainWindow.webContents.send('set-is-watching', true);
+			updateTray({start: true, stop: false});
 		});
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error starting watcher: ${error}`);
@@ -300,22 +402,29 @@ ipcMain.on('stop-watching-folder', (event, folder) => {
 
 function stopWatchingFolder(folder) {
 	try {
+		console.log("Watcher: ", watchers);
 		if (watchers[folder]) {
 			watchers[folder].close();
 			delete watchers[folder];
-			console.log(`Stopped watching folder: ${folder}`);
-
-			loadWatchedPaths((paths) => {
-				const updatedPaths = paths.filter((p) => p !== folder);
-				saveWatchedPaths(updatedPaths);
-				mainWindow.webContents.send('selected-folders', updatedPaths);
-			});
 		} else {
 			console.log(`No watcher found for folder: ${folder}`);
 		}
+		updateSavedWatchPaths(folder);
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error stopping watcher: ${error}`);
 	}
+}
+
+function updateSavedWatchPaths(folder){
+	loadMinifierData((savedData) => {
+		const updatedPaths = savedData.paths.filter((p) => p !== folder);
+		saveMinifierData({ ...savedData, paths: updatedPaths });
+		mainWindow.webContents.send('selected-folders', updatedPaths);
+		mainWindow.webContents.send('set-is-watching', false);
+		if (updatedPaths.length === 0) {
+			updateTray({start: false, stop: true});
+		}
+	});
 }
 
 function handleFileChange(filePath, webContents) {
