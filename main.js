@@ -14,6 +14,10 @@ let mainWindow;
 let watchers = [];
 let tray = null;
 
+
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('no-sandbox');
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!app.isPackaged) {

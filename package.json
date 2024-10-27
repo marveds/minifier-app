@@ -14,7 +14,8 @@
     "package:all": "npm run build && electron-packager . marveds-minifier --platform=darwin,win32,linux --arch=x64 --out=dist --overwrite",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "npx electron-forge publish"
+    "publish": "npx electron-forge publish",
+    "publish:dry": "npx electron-forge publish -- --from-dry-run"
   },
   "dependencies": {
     "@babel/core": "^7.25.8",
