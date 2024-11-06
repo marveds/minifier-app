@@ -448,10 +448,16 @@ function handleFileChange(filePath, webContents) {
 				outputExtension: '.css',
 				testRegex: /\.less$/,
 				loaders: [
-					process.env.NODE_ENV !== 'production' ? 'style-loader' : MiniCssExtractPlugin.loader,
+					// process.env.NODE_ENV !== 'production' ? 'style-loader' : MiniCssExtractPlugin.loader,
+					MiniCssExtractPlugin.loader,
                     {
                         loader: 'css-loader',
-                        options: { url: false, esModule: false, }
+                        options: { 
+							url: false, 
+							esModule: false,
+							importLoaders: 1,
+							sourceMap: true,
+						}
                     },
                     'less-loader',
 				],
@@ -516,12 +522,12 @@ function handleFileChange(filePath, webContents) {
 }
 
 function processFile(filePath, webContents, options) {
-	try {
-		const { inputExtension, outputExtension, testRegex, loaders, type } = options;
-		const baseName = path.basename(filePath, inputExtension);
-		const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
+    try {
+        const { inputExtension, outputExtension, testRegex, loaders, type } = options;
+        const baseName = path.basename(filePath, inputExtension);
+        const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
 
-		const config = {
+     	const config = {
 			entry: {
 				[baseName]: filePath,
 			},
@@ -549,19 +555,82 @@ function processFile(filePath, webContents, options) {
 			],
 		};
 
-		webpack(config, (err, stats) => {
-			if (err || stats.hasErrors()) {
-				const info = stats ? stats.toJson() : {};
-				console.error('Webpack Error:', err || info.errors);
-				webContents.send('watch-error', `Error processing ${type}: ${err || info.errors}`);
-			} else {
-				webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
-			}
-		});
-	} catch (error) {
-		mainWindow.webContents.send('watch-error', `Error processing ${type}: ${error}`);
-	}
+        webpack(config, (err, stats) => {
+            if (err || stats.hasErrors()) {
+                let errorMessage = '';
+
+                if (err) {
+                    errorMessage = err.toString();
+                }
+
+                if (stats && stats.hasErrors()) {
+                    const info = stats.toJson();
+                    if (info.errors && info.errors.length > 0) {
+                        errorMessage += info.errors.map(error => error.message).join('\n');
+                    }
+                }
+
+                console.error('Webpack Error:', errorMessage);
+                webContents.send('watch-error', `Error processing ${type}: ${errorMessage}`);
+            } else {
+                webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
+            }
+        });
+    } catch (error) {
+        const errorMessage = error.toString();
+        mainWindow.webContents.send('watch-error', `Error processing ${type}: ${errorMessage}`);
+    }
 }
+
+
+
+// function processFile(filePath, webContents, options) {
+// 	try {
+// 		const { inputExtension, outputExtension, testRegex, loaders, type } = options;
+// 		const baseName = path.basename(filePath, inputExtension);
+// 		const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
+
+// 		const config = {
+// 			entry: {
+// 				[baseName]: filePath,
+// 			},
+// 			output: {
+// 				path: path.dirname(filePath),
+// 				filename: '[name].js',
+// 			},
+// 			mode: 'production',
+// 			optimization: {
+// 				splitChunks: false,
+// 			},
+// 			module: {
+// 				rules: [
+// 					{
+// 						test: testRegex,
+// 						use: loaders,
+// 					},
+// 				],
+// 			},
+// 			plugins: [
+// 				new RemoveEmptyScriptsPlugin(),
+// 				new MiniCssExtractPlugin({
+// 					filename: `[name]${outputExtension}`,
+// 				}),
+// 			],
+// 		};
+
+// 		webpack(config, (err, stats) => {
+// 			if (err || stats.hasErrors()) {
+// 				const info = stats ? stats.toJson() : {};
+// 				console.error('Webpack Error:', err || info.errors);
+// 				webContents.send('watch-error', `Error processing ${type}: ${err || info.errors}`);
+// 			} else {
+// 				webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
+// 			}
+// 		});
+// 	} catch (error) {
+// 		mainWindow.webContents.send('watch-error', `Error processing ${type}: ${error}`);
+// 	}
+// }
 
 function removeJavaScriptMinFile(filePath, webContents, options = {}) {
 
