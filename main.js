@@ -1,22 +1,19 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, dialog } = require('electron');
 const path = require('path');
 const chokidar = require('chokidar');
-const webpack = require('webpack');
-const webpackConfig = require('./webpack.config.js');
 const fs = require('fs');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const RemoveEmptyScriptsPlugin = require('webpack-remove-empty-scripts');
-const TerserPlugin = require('terser-webpack-plugin');
-const { start } = require('repl');
-const minifierDataPath = path.join(app.getPath('userData'), 'minifierData.json');
+const os = require('os');
+const ts = require('typescript');
+const babel = require('@babel/core');
+const less = require('less').default || require('less');
+const sass = require('sass');
+const stylus = require('stylus');
+const userDataPath = os.homedir();
+const minifierDataPath = path.join(userDataPath, 'MinifierData', 'minifierData.json');
 
 let mainWindow;
 let watchers = [];
 let tray = null;
-
-
-// app.commandLine.appendSwitch('disable-gpu');
-// app.commandLine.appendSwitch('no-sandbox');
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -90,6 +87,7 @@ function createWindow() {
 				preload: path.join(__dirname, 'preload.js'),
 				contextIsolation: true,
 			},
+			icon: path.join(__dirname, 'images', 'app_icon.png'),
 		});
 
 		mainWindow.loadFile('index.html');
@@ -110,8 +108,7 @@ function createTray() {
 	try {
 		loadMinifierData((savedData) => {
 			const { paths, isWatching, notifictionState } = savedData;
-			console.log("Saved Data: ", savedData);
-			const iconPath = path.join(__dirname, 'app_icon.png');
+			const iconPath = path.join(__dirname, 'images', 'tray_app_icon.png');
 			if (fs.existsSync(iconPath)) {
 				tray = new Tray(iconPath);
 	
@@ -193,11 +190,8 @@ function createTray() {
 	
 				const trayMenu = Menu.buildFromTemplate(trayMenuTemplate);
 				tray.setContextMenu(trayMenu);
-	
-				console.log('Tray created successfully.');
 				mainWindow.webContents.send('debug-message', 'Tray created successfully.');
 			} else {
-				console.error('Icon file not found:', iconPath);
 				mainWindow.webContents.send('debug-message', 'Icon file not found:', iconPath);
 			}
 		});
@@ -207,7 +201,6 @@ function createTray() {
 ipcMain.on('check-folder-list-result', (event, state) => {
 	loadMinifierData((savedData) => {
 		const { notifictionState } = savedData;
-		console.log('Check folder list result notifictionState: ', notifictionState);
 		if (state) {
 			mainWindow.webContents.send('toggle-watch-request', true);
 			saveMinifierData({...savedData, isWatching: true });
@@ -311,10 +304,10 @@ function clearMinifierData() {
 			const { notifictionState } = savedData;
 			fs.unlink(minifierDataPath, (err) => {
 				if (err && err.code !== 'ENOENT') {
-					console.error('Error clearing watched paths:', err);
+					mainWindow.webContents.send('watch-error','Error clearing watched paths:', err);
 				} else {
-					console.log('Watched paths cleared successfully.');
-					mainWindow.webContents.send('paths-cleared');
+					mainWindow.webContents.send('watch-update','Watched paths cleared successfully.');
+					mainWindow.webContents.send('watch-update','paths-cleared');
 					updateTray({start: false, stop: true}, notifictionState);
 				}
 			});
@@ -406,12 +399,11 @@ ipcMain.on('stop-watching-folder', (event, folder) => {
 
 function stopWatchingFolder(folder) {
 	try {
-		console.log("Watcher: ", watchers);
 		if (watchers[folder]) {
 			watchers[folder].close();
 			delete watchers[folder];
 		} else {
-			console.log(`No watcher found for folder: ${folder}`);
+			mainWindow.webContents.send('watch-update', `No watcher found for folder: ${folder}`);
 		}
 		updateSavedWatchPaths(folder);
 	} catch (error) {
@@ -445,76 +437,26 @@ function handleFileChange(filePath, webContents) {
 			webContents.send('watch-update', `Processing LESS file: ${filePath}`);
 			processFile(filePath, webContents, {
 				inputExtension: '.less',
-				outputExtension: '.css',
-				testRegex: /\.less$/,
-				loaders: [
-					// process.env.NODE_ENV !== 'production' ? 'style-loader' : MiniCssExtractPlugin.loader,
-					MiniCssExtractPlugin.loader,
-                    {
-                        loader: 'css-loader',
-                        options: { 
-							url: false, 
-							esModule: false,
-							importLoaders: 1,
-							sourceMap: true,
-						}
-                    },
-                    'less-loader',
-				],
-				type: 'LESS',
+                outputExtension: '.css',
+                type: 'LESS',
 			});
 		} else if (filePath.endsWith('.scss') || filePath.endsWith('.sass')) {
 			webContents.send('watch-update', `Processing SCSS file: ${filePath}`);
 			processFile(filePath, webContents, {
 				inputExtension: path.extname(filePath),
-				outputExtension: '.css',
-				testRegex: /\.(scss|sass)$/,
-				loaders: [
-					{
-						loader: MiniCssExtractPlugin.loader,
-						options: {
-							esModule: false,
-						},
-					},
-					'css-loader',
-					'sass-loader',
-				],
-				type: 'SCSS',
+                outputExtension: '.css',
+                type: 'SCSS',
 			});
 		} else if (filePath.endsWith('.styl')) {
 			webContents.send('watch-update', `Processing Stylus file: ${filePath}`);
 			processFile(filePath, webContents, {
 				inputExtension: '.styl',
-				outputExtension: '.css',
-				testRegex: /\.styl$/,
-				loaders: [
-					{
-						loader: MiniCssExtractPlugin.loader,
-						options: {
-							esModule: false,
-						},
-					},
-					'css-loader',
-					'stylus-loader',
-				],
-				type: 'Stylus',
+                outputExtension: '.css',
+                type: 'Stylus',
 			});
 		} else if (filePath.endsWith('.ts')) {
 			webContents.send('watch-update', `Processing TypeScript file: ${filePath}`);
-			processJavaScriptFile(filePath, webContents, {
-				inputExtension: '.ts',
-				outputExtension: '.min.js',
-				testRegex: /\.ts$/,
-				loaders: [
-					{
-						loader: 'babel-loader',
-						options: {
-							presets: ['@babel/preset-env', '@babel/preset-typescript'],
-						},
-					},
-				],
-				type: 'TypeScript',
-			});
+			processTypeScriptFile(filePath, webContents);
 		}
 	} catch (error) {
 		mainWindow.webContents.send('watch-error', `Error processing file: ${error}`);
@@ -522,209 +464,83 @@ function handleFileChange(filePath, webContents) {
 }
 
 function processFile(filePath, webContents, options) {
-    try {
-        const { inputExtension, outputExtension, testRegex, loaders, type } = options;
+	try {
+        const { inputExtension, outputExtension, type } = options;
         const baseName = path.basename(filePath, inputExtension);
         const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
+        const inputContent = fs.readFileSync(filePath, 'utf8');
 
-     	const config = {
-			entry: {
-				[baseName]: filePath,
-			},
-			output: {
-				path: path.dirname(filePath),
-				filename: '[name].js',
-			},
-			mode: 'production',
-			optimization: {
-				splitChunks: false,
-			},
-			module: {
-				rules: [
-					{
-						test: testRegex,
-						use: loaders,
-					},
-				],
-			},
-			plugins: [
-				new RemoveEmptyScriptsPlugin(),
-				new MiniCssExtractPlugin({
-					filename: `[name]${outputExtension}`,
-				}),
-			],
-		};
-
-        webpack(config, (err, stats) => {
-            if (err || stats.hasErrors()) {
-                let errorMessage = '';
-
+        if (type === 'LESS') {
+            // Process LESS file
+            less.render(inputContent, { filename: filePath })
+                .then(output => {
+                    fs.writeFileSync(outputFilePath, output.css, 'utf8');
+                    webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
+                })
+                .catch(error => {
+                    webContents.send('watch-error', `Error processing ${type}: ${error}`);
+                });
+        } else if (type === 'SCSS') {
+            // Process SCSS/SASS file
+            const result = sass.renderSync({
+                file: filePath,
+                outFile: outputFilePath,
+                outputStyle: 'compressed', // Minify the output
+            });
+            fs.writeFileSync(outputFilePath, result.css, 'utf8');
+            webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
+        } else if (type === 'Stylus') {
+            // Process Stylus file
+            stylus.render(inputContent, { filename: filePath, compress: true }, (err, css) => {
                 if (err) {
-                    errorMessage = err.toString();
+                    webContents.send('watch-error', `Error processing ${type}: ${err}`);
+                } else {
+                fs.writeFileSync(outputFilePath, css, 'utf8');
+                    webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
                 }
-
-                if (stats && stats.hasErrors()) {
-                    const info = stats.toJson();
-                    if (info.errors && info.errors.length > 0) {
-                        errorMessage += info.errors.map(error => error.message).join('\n');
-                    }
-                }
-
-                console.error('Webpack Error:', errorMessage);
-                webContents.send('watch-error', `Error processing ${type}: ${errorMessage}`);
-            } else {
-                webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
-            }
         });
+        } else {
+            webContents.send('watch-error', `Unsupported file type: ${type}`);
+        }
     } catch (error) {
-        const errorMessage = error.toString();
-        mainWindow.webContents.send('watch-error', `Error processing ${type}: ${errorMessage}`);
+        webContents.send('watch-error', `Error processing file: ${error}`);
     }
 }
 
-
-
-// function processFile(filePath, webContents, options) {
-// 	try {
-// 		const { inputExtension, outputExtension, testRegex, loaders, type } = options;
-// 		const baseName = path.basename(filePath, inputExtension);
-// 		const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
-
-// 		const config = {
-// 			entry: {
-// 				[baseName]: filePath,
-// 			},
-// 			output: {
-// 				path: path.dirname(filePath),
-// 				filename: '[name].js',
-// 			},
-// 			mode: 'production',
-// 			optimization: {
-// 				splitChunks: false,
-// 			},
-// 			module: {
-// 				rules: [
-// 					{
-// 						test: testRegex,
-// 						use: loaders,
-// 					},
-// 				],
-// 			},
-// 			plugins: [
-// 				new RemoveEmptyScriptsPlugin(),
-// 				new MiniCssExtractPlugin({
-// 					filename: `[name]${outputExtension}`,
-// 				}),
-// 			],
-// 		};
-
-// 		webpack(config, (err, stats) => {
-// 			if (err || stats.hasErrors()) {
-// 				const info = stats ? stats.toJson() : {};
-// 				console.error('Webpack Error:', err || info.errors);
-// 				webContents.send('watch-error', `Error processing ${type}: ${err || info.errors}`);
-// 			} else {
-// 				webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
-// 			}
-// 		});
-// 	} catch (error) {
-// 		mainWindow.webContents.send('watch-error', `Error processing ${type}: ${error}`);
-// 	}
-// }
-
-function removeJavaScriptMinFile(filePath, webContents, options = {}) {
-
-	const {
-		inputExtension = '.js',
-		outputExtension = '.min.js',
-		testRegex = /\.js$/,
-		loaders,
-		type = 'JavaScript',
-	} = options;
-	const baseName = path.basename(filePath, inputExtension);
-	const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
-
-	// **Workaround: Remove the existing minified file before recreating it**
+function processJavaScriptFile(filePath, webContents) {
 	try {
-		if (fs.existsSync(outputFilePath)) {
-			fs.unlinkSync(outputFilePath);
-			webContents.send('debug-message', `Deleted existing minified file: ${outputFilePath}`);
-			processJavaScriptFile(filePath, webContents, options);
-		}
-	} catch (error) {
-		webContents.send('watch-error', `Error deleting minified file: ${error}`);
-	}
+	    const presetEnv = require('@babel/preset-env');
 
+        const inputCode = fs.readFileSync(filePath, 'utf8');
+        const output = babel.transformSync(inputCode, {
+            presets: [presetEnv],
+            sourceMaps: false,
+            minified: true,
+            comments: false,
+        });
+        const outputFilePath = filePath.replace(/\.js$/, '.min.js');
+        fs.writeFileSync(outputFilePath, output.code, 'utf8');
+        webContents.send('watch-update', `JavaScript processing completed: ${outputFilePath}`);
+    } catch (error) {
+        webContents.send('watch-error', `Error processing JavaScript file: ${error}`);
+    }
 }
 
-function processJavaScriptFile(filePath, webContents, options = {}) {
-	try {
-		const {
-			inputExtension = '.js',
-			outputExtension = '.min.js',
-			testRegex = /\.js$/,
-			loaders,
-			type = 'JavaScript',
-		} = options;
-		const baseName = path.basename(filePath, inputExtension);
-		const outputFilePath = path.join(path.dirname(filePath), `${baseName}${outputExtension}`);
-
-		const config = {
-			entry: filePath,
-			output: {
-				path: path.dirname(filePath),
-				filename: path.basename(outputFilePath),
-			},
-			cache: false,
-			mode: 'production',
-			target: 'web',
-			optimization: {
-				splitChunks: false,
-				minimize: true,
-				minimizer: [
-					new TerserPlugin({
-						extractComments: false, // Disable the creation of .LICENSE.txt files
-						terserOptions: {
-							format: {
-								comments: /@license|@preserve|^!/, // Preserve license comments
-							},
-						},
-					}),
-				],
-			},
-			module: {
-				rules: [
-					{
-						test: testRegex,
-						exclude: /node_modules/,
-						use: loaders || [
-							{
-								loader: 'babel-loader',
-								options: {
-									presets: ['@babel/preset-env'],
-								},
-							},
-						],
-					},
-				],
-			},
-		};
-
-
-		try {
-			webpack(config, (err, stats) => {
-				if (err || stats.hasErrors()) {
-					const info = stats ? stats.toJson() : {};
-					console.error('Webpack Error:', err || info.errors);
-					webContents.send('watch-error', `Error processing ${type}: ${err || info.errors}`);
-				} else {
-					webContents.send('watch-update', `${type} processing completed: ${outputFilePath}`);
-				}
-			});
-		} catch (error) {
-			webContents.send('watch-error', `Error processing ${type}: ${error}`);
-		}
-	} catch (error) {
-		mainWindow.webContents.send('watch-error', `Error processing ${type}: ${error}`);
-	}
+function processTypeScriptFile(filePath, webContents) {
+    try {
+        const inputCode = fs.readFileSync(filePath, 'utf8');
+        const output = ts.transpileModule(inputCode, {
+        compilerOptions: {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES5,
+            sourceMap: false,
+            removeComments: true,
+        },
+        });
+        const outputFilePath = filePath.replace(/\.ts$/, '.min.js');
+        fs.writeFileSync(outputFilePath, output.outputText, 'utf8');
+        webContents.send('watch-update', `TypeScript processing completed: ${outputFilePath}`);
+    } catch (error) {
+        webContents.send('watch-error', `Error processing TypeScript file: ${error}`);
+    }
 }
