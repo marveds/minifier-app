@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "An Electron-based application to watch folders and minify JavaScript/CSS files.",
   "main": "main.js",
+  "author": "Marvin Edwards <marveds2@gmail.com>",
   "scripts": {
     "start": "concurrently \"npm run watch:webpack\" \"npm run watch:css\" \"electron-forge start\"",
     "watch:webpack": "webpack --watch",
@@ -14,6 +15,7 @@
     "package:all": "npm run build && electron-packager . marveds-minifier --platform=darwin,win32,linux --arch=x64 --out=dist --overwrite",
     "package": "electron-forge package",
     "make": "electron-forge make",
+    "make-msi": "electron-builder --win --x64 --ia32",
     "publish": "npx electron-forge publish",
     "publish:dry": "npx electron-forge publish -- --from-dry-run"
   },
@@ -61,6 +63,7 @@
     "concurrently": "^9.0.1",
     "dotenv": "^16.4.5",
     "electron": "^32.2.1",
+    "electron-builder": "^25.1.8",
     "electron-packager": "^17.1.2",
     "electron-reload": "^2.0.0-alpha.1",
     "eslint": "^9.12.0",
@@ -70,5 +73,32 @@
     "prettier": "^3.3.3",
     "tailwindcss": "^3.4.13",
     "webpack-node-externals": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.marveds.minifier-app",
+    "productName": "minifier-app",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "/images/app_icon.ico"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/.bin",
+      "!.github",
+      "!**/*.map"
+    ],
+    "publish": null
   }
+
 }

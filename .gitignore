@@ -93,5 +93,6 @@ out/
 watched-paths.json
 
 dist/
+nodejs/
 bundle.js
 bundle.js.map
