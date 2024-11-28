@@ -1,11 +1,23 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const path = require('path');
+require('dotenv').config();
 
 module.exports = {
   packagerConfig: {
     asar: true,
     icon: path.join(__dirname, 'images', 'app_icon.png'),
+    osxSign: {
+      identity: "Developer ID Application: Marvin Edwards (" + process.env.APPLE_TEAM_ID + ")", // Replace with your code signing identity
+      hardenedRuntime: true, // Ensure this is set to true
+      entitlements: path.join(__dirname, 'entitlements.plist'),
+      entitlementsInherit: path.join(__dirname, 'entitlements.plist')
+    },
+    osxNotarize: {
+      appleId: process.env.APPLE_ID,
+      appleIdPassword: process.env.APPLE_PASSWORD,
+      teamId: process.env.APPLE_TEAM_ID
+    }
   },
   rebuildConfig: {},
   makers: [
@@ -16,6 +28,9 @@ module.exports = {
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
+      config: {
+        format: "ULFO"
+      }
     },
     {
       name: '@electron-forge/maker-deb',
