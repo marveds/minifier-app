@@ -293,7 +293,7 @@ function stopMinifierData() {
 
 ipcMain.on('clear-saved-paths', (event) => {
 	clearMinifierData();
-	// event.reply('paths-cleared');
+	event.reply('paths-cleared');
 });
 
 function clearMinifierData() {
@@ -319,6 +319,15 @@ function clearMinifierData() {
 
 function loadMinifierData(callback) {
 	try {
+		const minifierDataDir = path.join(userDataPath, 'MinifierData');
+		if (!fs.existsSync(minifierDataDir)) {
+			fs.mkdirSync(minifierDataDir);
+		}
+
+		if(!fs.existsSync(minifierDataPath)){
+			saveMinifierData({ isWatching: true, notifictionState: true });
+		}
+
 		fs.readFile(minifierDataPath, 'utf8', (err, data) => {
 			if (err) {
 				if (err.code !== 'ENOENT') {
@@ -342,7 +351,7 @@ function loadMinifierData(callback) {
 
 function saveMinifierData(data) {
 	try {
-		fs.writeFile(minifierDataPath, JSON.stringify(data), (err) => {
+		fs.writeFileSync(minifierDataPath, JSON.stringify(data), (err) => {
 			if (err) {
 				console.error('Error saving watched paths:', err);
 			} else {
