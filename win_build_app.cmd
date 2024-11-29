@@ -9,20 +9,20 @@ if %ERRORLEVEL% neq 0 (
     echo Node.js is already installed.
 )
 
-:: Create the app locally
-npm run package:win || (
-    echo Failed to create the app.
-    pause
-    exit /b 1
-)
+@REM :: Create the app locally
+@REM npm run package:win || (
+@REM     echo Failed to create the app.
+@REM     pause
+@REM     exit /b 1
+@REM )
 
 :: npm install electron-builder --save-dev
 
 :: Create the app locally
-:: npm run make-msi || (
-::    echo Failed to create the app.
-::    pause
-::    exit /b 1
-:: )
+ npm run make-msi || (
+    echo Failed to create the app.
+    pause
+    exit /b 1
+ )
 
 pause
