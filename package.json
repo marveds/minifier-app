@@ -15,7 +15,7 @@
     "package:all": "npm run build && electron-packager . marveds-minifier --platform=darwin,win32,linux --arch=x64 --out=dist --overwrite",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "make-msi": "electron-builder --win --x64 --ia32",
+    "make-msi": "electron-builder --x64",
     "publish": "npx electron-forge publish",
     "publish:dry": "npx electron-forge publish -- --from-dry-run"
   },
