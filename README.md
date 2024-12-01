@@ -23,7 +23,8 @@ To install the Minifier App, download the latest release from the [Releases Page
 1. Download and extract the zip files
 2. Run .\win_setup_and_build.cmd : this will install Prerequisites and create a .msi installer in the \dist folder.
 3. Run the .msi file to install the app
-4. Cleanup folders by running .\win_cleanup_folders.cmd
+4. Cleanup folders by running .\win_cleanup_folders.cmd.
+
 If you need to separate the install Prerequisites and build processes. Use win_setup_dependencies.cmd and win_build_app.cmd as needed.
 
 ## Usage
