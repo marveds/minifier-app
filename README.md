@@ -65,6 +65,7 @@ npm start
 ### Build the Application
 
 To package the app for your platform:
+Check package.json for other build/package options
 
 ```bash
 npm run make
